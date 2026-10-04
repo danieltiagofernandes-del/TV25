@@ -1,0 +1,57 @@
+name: Build TV25 v10 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract TV25 v10
+        run: |
+          rm -rf extracted
+          mkdir extracted
+          unzip -q TV25_GitHub_APK_Builder_v10.zip -d extracted
+
+      - name: Locate Android project
+        id: project
+        shell: bash
+        run: |
+          SETTINGS="$(find extracted -type f \( -name settings.gradle.kts -o -name settings.gradle \) | head -n 1)"
+          test -n "$SETTINGS" || { echo "Android project not found"; exit 1; }
+          echo "dir=$(dirname "$SETTINGS")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build TV25 v10
+        shell: bash
+        run: |
+          cd "${{ steps.project.outputs.dir }}"
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TV25-v8-APK
+          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
